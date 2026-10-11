@@ -1,0 +1,9 @@
+CREATE TABLE products (
+    product_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name VARCHAR(30) UNIQUE NOT NULL,
+    description VARCHAR(250),
+    total INT NOT NULL
+        CHECK (total >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
