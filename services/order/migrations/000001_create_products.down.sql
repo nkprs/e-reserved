@@ -1,1 +1,1 @@
-DELETE IF EXIST products;
+DROP TABLE products;
