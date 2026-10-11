@@ -1,0 +1,124 @@
+name: e-reserved
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      POSTGRES_DB: postgres
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD}
+      ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD}
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  user-migrate:
+    image: migrate/migrate:v4.20.1
+    restart: "no"
+    volumes:
+      - ./services/user/migrations:/migrations:ro
+    command:
+      [
+        "-path=/migrations",
+        "-database=postgres://user_app:${USER_DB_PASSWORD}@postgres:5432/user_db?sslmode=disable",
+        "up",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  order-migrate:
+    image: migrate/migrate:v4.20.1
+    restart: "no"
+    volumes:
+      - ./services/order/migrations:/migrations:ro
+    command:
+      [
+        "-path=/migrations",
+        "-database=postgres://order_app:${ORDER_DB_PASSWORD}@postgres:5432/order_db?sslmode=disable",
+        "up",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  payment-migrate:
+    image: migrate/migrate:v4.20.1
+    restart: "no"
+    volumes:
+      - ./services/payment/migrations:/migrations:ro
+    command:
+      [
+        "-path=/migrations",
+        "-database=postgres://payment_app:${PAYMENT_DB_PASSWORD}@postgres:5432/payment_db?sslmode=disable",
+        "up",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      args:
+        SERVICE: api
+    image: e-reserved-api:dev
+    restart: unless-stopped
+    depends_on:
+      user:
+        condition: service_started
+      order:
+        condition: service_started
+      payment:
+        condition: service_started
+
+  user:
+    build:
+      context: .
+      args:
+        SERVICE: user
+    image: e-reserved-user:dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://user_app:${USER_DB_PASSWORD}@postgres:5432/user_db?sslmode=disable
+    depends_on:
+      user-migrate:
+        condition: service_completed_successfully
+
+  order:
+    build:
+      context: .
+      args:
+        SERVICE: order
+    image: e-reserved-order:dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://order_app:${ORDER_DB_PASSWORD}@postgres:5432/order_db?sslmode=disable
+    depends_on:
+      order-migrate:
+        condition: service_completed_successfully
+
+  payment:
+    build:
+      context: .
+      args:
+        SERVICE: payment
+    image: e-reserved-payment:dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://payment_app:${PAYMENT_DB_PASSWORD}@postgres:5432/payment_db?sslmode=disable
+    depends_on:
+      payment-migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:

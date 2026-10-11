@@ -1,0 +1,6 @@
+.env
+.git
+.agents
+README.md
+deploy
+docker-compose.yml
